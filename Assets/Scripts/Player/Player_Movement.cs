@@ -10,10 +10,13 @@ public class Player_Movement : MonoBehaviour
     private BoxCollider2D coll; //Player Collider
     [SerializeField] private float defaultSpeed; //Speed of Horizontal Movement
     [SerializeField] private float jumpSpeed; //Speed of Jump
-    [SerializeField] private float maxSpeed; //Maximum run speed of player
+    [SerializeField] private float acceleration; //Acceleration speed of player
+    [SerializeField] private float deceleration; //Deceleration speed of player
+    [SerializeField] private float velPower; //Power of velocity, default is 1
+    [SerializeField] private float frictionAmount; //Amount of friction, default is 0.2
     [SerializeField] private LayerMask jumpableGround; //Jumpable Layer
-    private bool canDoubleJump;
-    [SerializeField] private float dashSpeed; //Jumpable Layer
+    private float dirX;//Direction of Player
+    private bool canDoubleJump; //Can the player double jump
 
     //Animation
     private Animator anim; //Animator
@@ -36,31 +39,37 @@ public class Player_Movement : MonoBehaviour
     private void Update()
     {
         //Horizontal Movement
-        float dirX = Input.GetAxisRaw("Horizontal");
-        //Stop accelerating when velocity > maxSpeed
-        if (Mathf.Abs(rb.velocity.x) < maxSpeed) {
-            rb.AddForce(new Vector2(dirX * defaultSpeed, 0f));
-        }      
+        dirX = Input.GetAxis("Horizontal");
+
+        float targetSpeed = dirX * defaultSpeed;
+
+        float speedDifference = targetSpeed - rb.velocity.x;
+
+        float accelerationRate = (Mathf.Abs(targetSpeed) > 0.01f) ? acceleration : deceleration;
+
+        float movement = Mathf.Pow(Mathf.Abs(speedDifference) * accelerationRate, velPower) * Mathf.Sign(speedDifference);
+        
+        rb.AddForce(movement * Vector2.right);
+
+        //Friction
+        friction();
 
         //Jumping
-        if (Input.GetButtonDown("Jump")) {
-            if (isGrounded()) {
-                rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);
-                jumpSound.Play(); //Play Sound
-                canDoubleJump = true;
-            } else {
-                if (canDoubleJump) {
-                    if (spr.flipX) {
-                        rb.velocity = new Vector2(-dashSpeed, jumpSpeed);
-                    } else {
-                        rb.velocity = new Vector2(dashSpeed, jumpSpeed);
-                    }
-                    jumpSound.Play(); //Play Sound
-                    canDoubleJump = false;
-                }
-            }
-            
+        if (isGrounded()) {
+            canDoubleJump = true;
+            if (Input.GetButtonDown("Jump")) {
+               rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);
+               jumpSound.Play(); //Play Sound
+            }  
+        } else {
+            if (Input.GetButtonDown("Jump") && canDoubleJump) {
+               rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);
+               jumpSound.Play(); //Play Sound
+               canDoubleJump = false;
+           }
         }
+
+        
 
         //Animation
         animationUpdate(dirX);
@@ -72,10 +81,10 @@ public class Player_Movement : MonoBehaviour
         MovementState state;
 
         //Horizontal Movement (Idle <-> Running)
-        if (input > 0f) {
+        if (input > 0.01f) {
             state = MovementState.running;
             spr.flipX = false;
-        } else if (input < 0f) {
+        } else if (input < -0.01f) {
             state = MovementState.running;
             spr.flipX = true;
         } else {
@@ -99,6 +108,14 @@ public class Player_Movement : MonoBehaviour
     private bool isGrounded() {
         //Arguments: Center of Box, Size of Box, Angle of Box (float),
         //Direction of Box Shift, Distance of the Box Shift, Detects Collision With Layer
-        return Physics2D.BoxCast(coll.bounds.center, coll.bounds.size, 0f, Vector2.down, 0.1f, jumpableGround);
+        return Physics2D.BoxCast(coll.bounds.center, coll.bounds.size, 0f, Vector2.down, 0.01f, jumpableGround);
+    }
+
+    private void friction() {
+        if (isGrounded() && Mathf.Abs(dirX) < 0.01f) {
+            float amountOfFriction = Mathf.Min(Mathf.Abs(rb.velocity.x), Mathf.Abs(frictionAmount));
+            amountOfFriction *= Mathf.Sign(rb.velocity.x);
+            rb.AddForce(Vector2.right * -amountOfFriction, ForceMode2D.Impulse);
+        }
     }
 }

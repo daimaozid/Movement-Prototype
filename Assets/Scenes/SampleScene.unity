@@ -216,7 +216,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 10
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -240,7 +240,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 519420028}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5, y: 0, z: -10}
+  m_LocalPosition: {x: 5, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -261,9 +261,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   player: {fileID: 708448180}
   rb: {fileID: 708448182}
-  offset: {x: 0, y: 1, z: -10}
+  offset: {x: 5, y: 2, z: -10}
   downOffset: {x: 0, y: -2, z: 0}
-  smoothTime: 0.125
+  smoothTime: 0.05
 --- !u!1 &708448177
 GameObject:
   m_ObjectHideFlags: 0
@@ -437,7 +437,7 @@ Rigidbody2D:
   m_LinearDrag: 0
   m_AngularDrag: 0.05
   m_GravityScale: 5
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 6200000, guid: 3c8f8569c072c4747bcd767a0753a13e, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -460,13 +460,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e09c0c5beedf0f42a475b2a270bffad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  defaultSpeed: 5
+  defaultSpeed: 10
   jumpSpeed: 17
-  maxSpeed: 10
+  acceleration: 5
+  deceleration: 5
+  velPower: 1
+  frictionAmount: 0.2
   jumpableGround:
     serializedVersion: 2
     m_Bits: 64
-  dashSpeed: 10
   jumpSound: {fileID: 708448184}
 --- !u!82 &708448184
 AudioSource:
@@ -7079,7 +7081,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1717107485
 MonoBehaviour:
   m_ObjectHideFlags: 0
