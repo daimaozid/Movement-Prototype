@@ -19,7 +19,7 @@ public class Player_Camera : MonoBehaviour
     {
 
         //Defines the desired position of the camera
-        Vector3 desiredPosition = player.position + offset;
+        Vector3 desiredPosition = new Vector3(player.position.x, 0, 0) + offset;
 
         if (Input.GetAxisRaw("Vertical") < 0f && rb.velocity.y == 0f) {
             desiredPosition = player.position + offset + downOffset;

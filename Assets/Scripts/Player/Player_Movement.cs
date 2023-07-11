@@ -6,15 +6,23 @@ public class Player_Movement : MonoBehaviour
 {
     //Instance Variables
     //Movement
-    private Rigidbody2D rb; //Player Physics
-    private BoxCollider2D coll; //Player Collider
     [SerializeField] private float defaultSpeed; //Speed of Horizontal Movement
-    [SerializeField] private float jumpSpeed; //Speed of Jump
+    [SerializeField] private float jumpSpeed; //Normal speed of jump
+    [SerializeField] private float jumpCutMultiplier; //How much speed the player loses if let go of jump
     [SerializeField] private float acceleration; //Acceleration speed of player
     [SerializeField] private float deceleration; //Deceleration speed of player
     [SerializeField] private float velPower; //Power of velocity, default is 1
-    [SerializeField] private float frictionAmount; //Amount of friction, default is 0.2
+    [SerializeField] private float maxCoyoteTime; //Time you get to jump while not on platforms
+    [SerializeField] private float fallGravityMultiplier; //Modifies how fast you fall
+    [SerializeField] private float hangGravityMultiplier; //Modifies how long you hang in air
+    [SerializeField] private float hangVelocityActivate; //Velocity required to activate hang time
+    [SerializeField] private float maxFallSpeed; //Max fall speed
     [SerializeField] private LayerMask jumpableGround; //Jumpable Layer
+    private Rigidbody2D rb; //Player Physics
+    private BoxCollider2D coll; //Player Collider
+    private bool isJumping; //Is the player in a jump
+    private float coyoteTime; //The actual coyote timer that ticks down
+    private float gravityScale; //Modifies gravity while falling
     private float dirX;//Direction of Player
     private bool canDoubleJump; //Can the player double jump
 
@@ -33,43 +41,69 @@ public class Player_Movement : MonoBehaviour
         coll = GetComponent<BoxCollider2D>(); //Initializes coll
         anim = GetComponent<Animator>(); //Initializes anim
         spr = GetComponent<SpriteRenderer>(); //Initializes Sprite Renderer
+        coyoteTime = maxCoyoteTime; //Sets the timer to max
+        gravityScale = rb.gravityScale; //Gets player rigidbody gravity
     }
 
     // Update is called once per frame
     private void Update()
     {
         //Horizontal Movement
+        //Gets player direction
         dirX = Input.GetAxis("Horizontal");
 
+        //Speed the player is trying to reach
         float targetSpeed = dirX * defaultSpeed;
 
+        //The difference between target speed and actual speed
         float speedDifference = targetSpeed - rb.velocity.x;
 
+        //If the target speed exists, accelerate towards it. Otherwise decelerate.
         float accelerationRate = (Mathf.Abs(targetSpeed) > 0.01f) ? acceleration : deceleration;
 
-        float movement = Mathf.Pow(Mathf.Abs(speedDifference) * accelerationRate, velPower) * Mathf.Sign(speedDifference);
-        
+        //Multiply the difference in speed by the rate of acceleration
+        //Sign function determines which direction it should apply it in
+        float movement =
+        Mathf.Pow(Mathf.Abs(speedDifference) * accelerationRate, velPower) * Mathf.Sign(speedDifference);
+
+        //Applies force to player
         rb.AddForce(movement * Vector2.right);
 
-        //Friction
-        friction();
-
         //Jumping
+        //If grounded, reset coyote time and double jump
+        //Else, it checks the coyote time first to see if the player can do normal jump
+        //If not, the player uses double jump
         if (isGrounded()) {
-            canDoubleJump = true;
+            coyoteTime = maxCoyoteTime; //Resets coyote time
+            canDoubleJump = true; //Resets double jump
             if (Input.GetButtonDown("Jump")) {
-               rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);
-               jumpSound.Play(); //Play Sound
-            }  
+                jump();
+            }
         } else {
-            if (Input.GetButtonDown("Jump") && canDoubleJump) {
-               rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);
-               jumpSound.Play(); //Play Sound
-               canDoubleJump = false;
-           }
+            coyoteTime -= Time.deltaTime; //Coyote time ticks down
+            if (Input.GetButtonDown("Jump")) {
+                //If coyote time hasn't passed and has not jumped, do normal jump
+                if (coyoteTime > 0 && !isJumping) {
+                    jump();
+                } else if (canDoubleJump) { //If coyote time passed, do double jump
+                    jump();
+                    canDoubleJump = false;
+                }
+            }
         }
 
-        
+        //If jump is not held down and the player is grounded, reset isJumping
+        if(!Input.GetButton("Jump")) {
+            if (isGrounded()) {
+                isJumping = false; //Resets jump status
+            }
+        }
+
+        //If the player lets go of jump and is moving upwards, cut the jump.
+        if(Input.GetButtonUp("Jump") && isJumping && rb.velocity.y > 0.01f) {
+            //Push player downwards by a fraction of their current vertical velocity
+            rb.AddForce(Vector2.down * rb.velocity.y * (1 - jumpCutMultiplier), ForceMode2D.Impulse);
+        }
 
         //Animation
         animationUpdate(dirX);
@@ -92,14 +126,39 @@ public class Player_Movement : MonoBehaviour
         }
 
         //Verticle Movement (Idle/Running <-> Jumping/Falling)
-        if (rb.velocity.y > 0.1f) {
+        if (rb.velocity.y > 0.01f) {
             state = MovementState.jump;
-        } else if (rb.velocity.y < -0.1f) {
+        } else if (rb.velocity.y < -0.01f) {
             state = MovementState.fall;
         }
 
+        //Controls gravity of jumping
+        jumpGravity();
+
         //Sets Animation State Value
         anim.SetInteger("State", (int) state);
+    }
+
+    //Jumping function
+    private void jump() {
+        isJumping = true;
+        rb.velocity = new Vector2(rb.velocity.x, jumpSpeed);  
+        jumpSound.Play(); //Play Sound
+    }
+
+    //Jumping gravity
+    private void jumpGravity() {
+        if (rb.velocity.y < -maxFallSpeed) {
+            rb.gravityScale = 0;
+        } else {
+            if (rb.velocity.y < -0.01f) {
+                rb.gravityScale = gravityScale * fallGravityMultiplier;
+            } else if (rb.velocity.y > hangVelocityActivate) {
+                rb.gravityScale = gravityScale * hangGravityMultiplier;
+            } else {
+                rb.gravityScale = gravityScale;
+            }
+        }
     }
 
     //Creates a new collider based on the player's collider but shifted down
@@ -111,11 +170,5 @@ public class Player_Movement : MonoBehaviour
         return Physics2D.BoxCast(coll.bounds.center, coll.bounds.size, 0f, Vector2.down, 0.01f, jumpableGround);
     }
 
-    private void friction() {
-        if (isGrounded() && Mathf.Abs(dirX) < 0.01f) {
-            float amountOfFriction = Mathf.Min(Mathf.Abs(rb.velocity.x), Mathf.Abs(frictionAmount));
-            amountOfFriction *= Mathf.Sign(rb.velocity.x);
-            rb.AddForce(Vector2.right * -amountOfFriction, ForceMode2D.Impulse);
-        }
-    }
+
 }
